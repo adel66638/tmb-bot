@@ -92,7 +92,7 @@ bot.start(async (ctx) => {
  inline_keyboard: [
  [{
  text: '🚀 Open Mining App',
- web_app: { url: 'https://YOUR_USERNAME.github.io/tmb-bot/' } // ← replace
+ web_app: { url: 'https://adel66638.github.io/tmb-bot/' }
  }]
  ]
  }
@@ -152,23 +152,20 @@ bot.command('withdraw', async (ctx) => {
 });
 
 bot.command('admin', async (ctx) => {
- const args = ctx.message.text.split(' ');
- if (args.length < 2 || args[1] !== ADMIN_SECRET) {
- return ctx.reply('❌ Invalid admin password.');
- }
-
  // Stats
  const snapshot = await db.collection('users').get();
  const users = snapshot.docs.map(d => d.data());
  const totalPool = users.reduce((sum, u) => sum + (u.pool || 0), 0);
  const totalHolding = users.reduce((sum, u) => sum + (u.holding || 0), 0);
  const totalUsers = users.length;
+ const totalReferrals = users.reduce((sum, u) => sum + (u.referrals || 0), 0);
 
  const msg = `
 🔐 *Admin Panel*
 • Users: ${totalUsers}
 • Total Pool: ${totalPool.toFixed(4)} TMB
 • Total Holding: ${totalHolding.toFixed(4)} TMB
+• Total Referrals: ${totalReferrals}
 `;
  await ctx.reply(msg, { parse_mode: 'Markdown' });
 });

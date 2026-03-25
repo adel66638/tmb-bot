@@ -9,7 +9,7 @@
  <!-- Firebase -->
  <script type="module">
  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
- import { getFirestore, collection, getDocs, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+ import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
  // ─── FIREBASE CONFIG ───
  const firebaseConfig = {
@@ -25,46 +25,19 @@
  const app = initializeApp(firebaseConfig);
  const db = getFirestore(app);
 
- // ─── ADMIN CONFIG ───
- const ADMIN_SECRET = "CHANGE_THIS_PASSWORD"; // ⬅️ غيّرها
-
  // ─── STATE ───
- let isAuthenticated = false;
  let users = [];
 
  // ─── DOM refs ───
  const $ = id => document.getElementById(id);
 
  // ─── UI ───
- function showLogin() {
- $("login-section").style.display = "flex";
- $("admin-section").style.display = "none";
- }
-
- function showAdmin() {
- $("login-section").style.display = "none";
- $("admin-section").style.display = "block";
- }
-
  function showToast(msg) {
  const t = $("toast");
  t.textContent = msg;
  t.classList.add("show");
  setTimeout(() => t.classList.remove("show"), 2500);
  }
-
- // ─── LOGIN ───
- $("login-form").onsubmit = async (e) => {
- e.preventDefault();
- const secret = $("admin-secret").value.trim();
- if (secret === ADMIN_SECRET) {
- isAuthenticated = true;
- showAdmin();
- loadData();
- } else {
- showToast("❌ Wrong password!");
- }
- };
 
  // ─── LOAD DATA ───
  async function loadData() {
@@ -114,7 +87,7 @@
 
  // ─── INIT ───
  window.onload = () => {
- showLogin();
+ loadData();
  };
  </script>
 
@@ -140,54 +113,8 @@
  font-family: 'Rajdhani', sans-serif;
  }
 
- /* ── LOGIN SCREEN ── */
- #login-section {
- position: fixed; inset: 0;
- display: flex; align-items: center; justify-content: center;
- background: var(--bg);
- }
- .login-box {
- background: var(--card);
- border: 1px solid var(--border);
- border-radius: 20px;
- padding: 40px 30px;
- width: 90%; max-width: 360px;
- text-align: center;
- }
- .login-title {
- font-family: 'Orbitron', sans-serif;
- font-size: 24px; font-weight: 900;
- background: linear-gradient(135deg, var(--gold), var(--gold2));
- -webkit-background-clip: text; -webkit-text-fill-color: transparent;
- margin-bottom: 30px;
- }
- .login-input {
- width: 100%;
- padding: 14px;
- border-radius: 12px;
- border: 1px solid var(--border);
- background: var(--bg2);
- color: var(--text);
- font-family: 'Rajdhani', sans-serif;
- font-size: 16px;
- margin-bottom: 20px;
- outline: none;
- }
- .login-input:focus { border-color: var(--gold); }
- .login-btn {
- width: 100%;
- padding: 14px;
- border: none; border-radius: 12px;
- background: linear-gradient(135deg, var(--gold), #c8860a);
- color: #000;
- font-family: 'Orbitron', sans-serif;
- font-weight: 700;
- font-size: 16px;
- cursor: pointer;
- }
-
  /* ── ADMIN PANEL ── */
- #admin-section { display: none; padding: 20px 16px 100px; }
+ #admin-section { padding: 20px 16px 100px; }
 
  .admin-header {
  display: flex; justify-content: space-between; align-items: center;
@@ -258,22 +185,11 @@
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
-<div id="login-section">
- <div class="login-box">
- <div class="login-title">TMB ADMIN</div>
- <form id="login-form">
- <input type="password" id="admin-secret" class="login-input" placeholder="Enter admin password" required autofocus/>
- <button type="submit" class="login-btn">LOGIN</button>
- </form>
- </div>
-</div>
-
 <!-- ADMIN PANEL -->
 <div id="admin-section">
  <div class="admin-header">
  <div class="admin-title">Admin Panel</div>
- <button class="logout-btn" onclick="location.reload()">Logout</button>
+ <button class="logout-btn" onclick="window.close()">Close</button>
  </div>
 
  <div class="stats-grid">
