@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8"/>
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+ <title>TMB Mining</title>
+ <script src="https://telegram.org/js/telegram-web-app.js"></script>
+ <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+
+ <!-- Firebase -->
+ <script type="module">
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+ import {
+ getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp
+ } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+ // ─── FIREBASE CONFIG ─── replace with yours ───
+ const firebaseConfig = {
+ apiKey: "AIzaSyD2qYpHNu5BOLPijj_YiiIsR18U54dDh0M",
+ authDomain: "tmb-mining.firebaseapp.com",
+ projectId: "tmb-mining",
+ storageBucket: "tmb-mining.appspot.com",
+ messagingSenderId: "1078313749560",
+ appId: "1:1078313749560:web:e3615be7dd22b9085f94f0"
+ };
+ // ─────────────────────────────────────────────
+
+ const app = initializeApp(firebaseConfig);
+ const db = getFirestore(app);
+
+ // ════════════════════════════════
+ // TMB CONFIG
+ // ════════════════════════════════
+ const MINE_AMOUNT = 0.0008; // TMB per session
+ const MINE_DURATION = 3600; // seconds
+
+ // ════════════════════════════════
+ // Telegram init
+ // ════════════════════════════════
+ const tg = window.Telegram?.WebApp;
+ const tgUser = tg?.initDataUnsafe?.user || { id: 0, first_name: "Demo", username: "demo" };
+
+ if (tg) {
+ tg.ready();
+ tg.expand();
+ tg.setBackgroundColor("#0a0a0a");
+ tg.setHeaderColor("#0a0a0a");
+ // Add admin button to header
+ const adminBtn = document.createElement("button");
+ adminBtn.innerHTML = "⚙️";
+ adminBtn.title = "Admin";
+ adminBtn.style.cssText = "background:none;border:1px solid var(--border);color:var(--muted);padding:6px 10px;border-radius:8px;cursor:pointer;font-size:16px;";
+ adminBtn.onclick = () => { window.location.href = "admin.html"; };
+ document.querySelector(".header-left")?.appendChild(adminBtn);
+ }
+
+ // ════════════════════════════════
+ // Firestore helpers
+ // ════════════════════════════════
+ async function loadUser(uid) {
+ const ref = doc(db, "users", String(uid));
+ const snap = await getDoc(ref);
+ if (snap.exists()) return snap.data();
+
+ // New user
+ const newUser = {
+ uid: String(uid),
+ first_name: tgUser.first_name,
+ username: tgUser.username || "",
+ pool: 0,
+ holding: 0,
+ level: 1,
+ mining: false,
+ mineStart: null,
+ lastClaim: null,
+ referrals: 0,
+ createdAt: serverTimestamp()
+ };
+ await setDoc(ref, newUser);
+ return newUser;
+ }
+
+ async function saveUser(uid, data) {
+ const ref = doc(db, "users", String(uid));
+ await updateDoc(ref, data);
+ }
+
+ // ════════════════════════════════
+ // State
+ // ════════════════════════════════
+ let userData = null;
+ let pendingInterval = null;
+
+ // ════════════════════════════════
+ // UI refs
+ // ════════════════════════════════
+ const $ = id => document.getElementById(id);
+
+ function showScreen(name) {
+ document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+ document.getElementById("screen-" + name).classList.add("active");
+
+ document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+ const tab = document.querySelector(`[data-tab="${name}"]`);
+ if (tab) tab.classList.add("active");
+ }
+
+ // ════════════════════════════════
+ // Pending calc
+ // ════════════════════════════════
+ function getPending(user) {
+ if (!user.mining || !user.mineStart) return 0;
+ const now = Date.now() / 1000;
+ const elapsed = now - user.mineStart;
+ return Math.min((elapsed / MINE_DURATION) * MINE_AMOUNT, MINE_AMOUNT);
+ }
+
+ // ════════════════════════════════
+ // Render mine screen
+ // ════════════════════════════════
+ function renderMine() {
+ const pending = getPending(userData);
+ $("pool-val").textContent = userData.pool?.toFixed(4) || "0.0000";
+ $("holding-val").textContent = userData.holding?.toFixed(4) || "0.0000";
+ $("pending-val").textContent = pending.toFixed(4);
+ $("lvl-badge").textContent = "Lvl " + (userData.level || 1);
+ $("status-dot").className = "dot " + (userData.mining ? "mining" : "idle");
+ $("status-txt").textContent = userData.mining ? "MINING" : "IDLE";
+
+ if (userData.mining) {
+ $("main-btn").textContent = "CLAIM";
+ $("main-btn").className = "main-btn claim-btn";
+ $("main-btn").onclick = handleClaim;
+ } else {
+ $("main-btn").textContent = "START";
+ $("main-btn").className = "main-btn start-btn";
+ $("main-btn").onclick = handleStart;
+ }
+ }
+
+ // ════════════════════════════════
+ // Pending ticker
+ // ════════════════════════════════
+ function startTicker() {
+ clearInterval(pendingInterval);
+ pendingInterval = setInterval(() => {
+ if (userData?.mining) {
+ $("pending-val").textContent = getPending(userData).toFixed(4);
+ }
+ }, 2000);
+ }
+
+ // ════════════════════════════════
+ // Captcha
+ // ════════════════════════════════
+ let captchaAnswer = null;
+
+ function showCaptcha() {
+ const a = Math.floor(Math.random() * 15) + 1;
+ const b = Math.floor(Math.random() * 15) + 1;
+ const ops = [
+ { op: "+", ans: a + b },
+ { op: "-", ans: a - b },
+ ];
+ const chosen = ops[Math.floor(Math.random() * ops.length)];
+ captchaAnswer = chosen.ans;
+ $("captcha-question").textContent = `${a} ${chosen.op} ${b}`;
+ $("captcha-input").value = "";
+ $("captcha-overlay").classList.add("visible");
+ }
+
+ function hideCaptcha() {
+ $("captcha-overlay").classList.remove("visible");
+ }
+
+ $("captcha-cancel").onclick = hideCaptcha;
+
+ $("captcha-confirm").onclick = async () => {
+ const val = parseInt($("captcha-input").value.trim());
+ if (isNaN(val) || val !== captchaAnswer) {
+ $("captcha-input").classList.add("shake");
+ setTimeout(() => $("captcha-input").classList.remove("shake"), 500);
+ showToast("❌ Wrong answer!");
+ return;
+ }
+ hideCaptcha();
+ await startMining();
+ };
+
+ // ════════════════════════════════
+ // Handlers
+ // ════════════════════════════════
+ function handleStart() {
+ showCaptcha();
+ }
+
+ async function startMining() {
+ const now = Date.now() / 1000;
+ userData.mining = true;
+ userData.mineStart = now;
+ userData.lastClaim = now;
+ await saveUser(tgUser.id, { mining: true, mineStart: now, lastClaim: now });
+ renderMine();
+ showToast("⛏️ Mining started!");
+ }
+
+ async function handleClaim() {
+ if (!userData.mining) return;
+ const pending = getPending(userData);
+ const newPool = (userData.pool || 0) + pending;
+ const now = Date.now() / 1000;
+
+ userData.pool = parseFloat(newPool.toFixed(4));
+ userData.mineStart = now;
+ userData.lastClaim = now;
+
+ await saveUser(tgUser.id, {
+ pool: userData.pool,
+ mineStart: now,
+ lastClaim: now,
+ });
+
+ renderMine();
+ showToast(`✅ Claimed ${pending.toFixed(4)} TMB!`);
+
+ // coin bounce
+ document.querySelector(".coin").classList.add("bounce");
+ setTimeout(() => document.querySelector(".coin").classList.remove("bounce"), 600);
+ }
+
+ // ════════════════════════════════
+ // Profile screen
+ // ════════════════════════════════
+ function renderProfile() {
+ $("p-userid").textContent = userData.uid || tgUser.id;
+ $("p-assets").textContent = ((userData.pool || 0) + (userData.holding || 0)).toFixed(4) + " TMB";
+ $("p-holding").textContent = (userData.holding || 0).toFixed(4) + " TMB";
+ $("p-pool").textContent = (userData.pool || 0).toFixed(4) + " TMB";
+ }
+
+ $("btn-withdraw").onclick = async () => {
+ const pool = userData.pool || 0;
+ if (pool <= 0) { showToast("Pool is empty!"); return; }
+ userData.holding = parseFloat(((userData.holding || 0) + pool).toFixed(4));
+ userData.pool = 0;
+ await saveUser(tgUser.id, { pool: 0, holding: userData.holding });
+ renderProfile();
+ showToast(`💰 Transferred ${pool.toFixed(4)} TMB!`);
+ };
+
+ // ════════════════════════════════
+ // Friends screen
+ // ════════════════════════════════
+ function renderFriends() {
+ const botUser = "TMBBot"; // replace with your bot username
+ const link = `https://t.me/${botUser}?start=${tgUser.id}`;
+ $("ref-link").textContent = link;
+ $("ref-count").textContent = userData.referrals || 0;
+ $("copy-ref").onclick = () => {
+ navigator.clipboard?.writeText(link);
+ showToast("🔗 Link copied!");
+ };
+ }
+
+ // ════════════════════════════════
+ // Toast
+ // ════════════════════════════════
+ function showToast(msg) {
+ const t = $("toast");
+ t.textContent = msg;
+ t.classList.add("show");
+ setTimeout(() => t.classList.remove("show"), 2500);
+ }
+
+ // ════════════════════════════════
+ // Tab navigation
+ // ════════════════════════════════
+ document.querySelectorAll(".tab-btn").forEach(btn => {
+ btn.onclick = () => {
+ const tab = btn.dataset.tab;
+ showScreen(tab);
+ if (tab === "mine") renderMine();
+ if (tab === "profile") renderProfile();
+ if (tab === "friends") renderFriends();
+ };
+ });
+
+ // ════════════════════════════════
+ // Boot
+ // ════════════════════════════════
+ async function boot() {
+ $("loader").style.display = "flex";
+ try {
+ userData = await loadUser(tgUser.id);
+ $("user-name").textContent = tgUser.first_name || userData.first_name;
+ renderMine();
+ startTicker();
+ showScreen("mine");
+ } catch(e) {
+ console.error(e);
+ showToast("⚠️ Connection error. Check Firebase config.");
+ }
+ $("loader").style.display = "none";
+ }
+
+ boot();
+ </script>

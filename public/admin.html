@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8"/>
+ <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+ <title>TMB Admin Panel</title>
+ <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+
+ <!-- Firebase -->
+ <script type="module">
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+ import { getFirestore, collection, getDocs, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+ // ─── FIREBASE CONFIG ───
+ const firebaseConfig = {
+ apiKey: "AIzaSyD2qYpHNu5BOLPijj_YiiIsR18U54dDh0M",
+ authDomain: "tmb-mining.firebaseapp.com",
+ projectId: "tmb-mining",
+ storageBucket: "tmb-mining.appspot.com",
+ messagingSenderId: "1078313749560",
+ appId: "1:1078313749560:web:e3615be7dd22b9085f94f0"
+ };
+ // ─────────────────────────────────────────────
+
+ const app = initializeApp(firebaseConfig);
+ const db = getFirestore(app);
+
+ // ─── ADMIN CONFIG ───
+ const ADMIN_SECRET = "CHANGE_THIS_PASSWORD"; // ⬅️ غيّرها
+
+ // ─── STATE ───
+ let isAuthenticated = false;
+ let users = [];
+
+ // ─── DOM refs ───
+ const $ = id => document.getElementById(id);
+
+ // ─── UI ───
+ function showLogin() {
+ $("login-section").style.display = "flex";
+ $("admin-section").style.display = "none";
+ }
+
+ function showAdmin() {
+ $("login-section").style.display = "none";
+ $("admin-section").style.display = "block";
+ }
+
+ function showToast(msg) {
+ const t = $("toast");
+ t.textContent = msg;
+ t.classList.add("show");
+ setTimeout(() => t.classList.remove("show"), 2500);
+ }
+
+ // ─── LOGIN ───
+ $("login-form").onsubmit = async (e) => {
+ e.preventDefault();
+ const secret = $("admin-secret").value.trim();
+ if (secret === ADMIN_SECRET) {
+ isAuthenticated = true;
+ showAdmin();
+ loadData();
+ } else {
+ showToast("❌ Wrong password!");
+ }
+ };
+
+ // ─── LOAD DATA ───
+ async function loadData() {
+ try {
+ const snapshot = await getDocs(collection(db, "users"));
+ users = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+ renderStats();
+ renderTable();
+ } catch(err) {
+ console.error(err);
+ showToast("⚠️ Failed to load data");
+ }
+ }
+
+ // ─── RENDER STATS ───
+ function renderStats() {
+ const totalUsers = users.length;
+ const totalPool = users.reduce((sum, u) => sum + (u.pool || 0), 0);
+ const totalHolding = users.reduce((sum, u) => sum + (u.holding || 0), 0);
+ const totalReferrals = users.reduce((sum, u) => sum + (u.referrals || 0), 0);
+
+ $("stat-users").textContent = totalUsers;
+ $("stat-pool").textContent = totalPool.toFixed(4);
+ $("stat-holding").textContent = totalHolding.toFixed(4);
+ $("stat-referrals").textContent = totalReferrals;
+ }
+
+ // ─── RENDER TABLE ───
+ function renderTable() {
+ const tbody = $("users-table-body");
+ tbody.innerHTML = "";
+ users.forEach(u => {
+ const tr = document.createElement("tr");
+ tr.innerHTML = `
+ <td>${u.uid}</td>
+ <td>${u.first_name || ''}</td>
+ <td>${u.username || ''}</td>
+ <td>${u.pool?.toFixed(4) || '0.0000'}</td>
+ <td>${u.holding?.toFixed(4) || '0.0000'}</td>
+ <td>${u.level || 1}</td>
+ <td>${u.referrals || 0}</td>
+ <td><span style="color:${u.mining ? '#4cff88' : '#888'}">${u.mining ? 'Active' : 'Idle'}</span></td>
+ `;
+ tbody.appendChild(tr);
+ });
+ }
+
+ // ─── INIT ───
+ window.onload = () => {
+ showLogin();
+ };
+ </script>
+
+ <style>
+ *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+ :root {
+ --gold: #f5a623;
+ --gold2: #ffcc44;
+ --red: #e84040;
+ --bg: #0a0a0a;
+ --bg2: #111111;
+ --card: rgba(255,255,255,0.05);
+ --border: rgba(245,166,35,0.25);
+ --text: #ffffff;
+ --muted: rgba(255,255,255,0.5);
+ }
+
+ html, body {
+ height: 100%; width: 100%;
+ background: var(--bg);
+ color: var(--text);
+ font-family: 'Rajdhani', sans-serif;
+ }
+
+ /* ── LOGIN SCREEN ── */
+ #login-section {
+ position: fixed; inset: 0;
+ display: flex; align-items: center; justify-content: center;
+ background: var(--bg);
+ }
+ .login-box {
+ background: var(--card);
+ border: 1px solid var(--border);
+ border-radius: 20px;
+ padding: 40px 30px;
+ width: 90%; max-width: 360px;
+ text-align: center;
+ }
+ .login-title {
+ font-family: 'Orbitron', sans-serif;
+ font-size: 24px; font-weight: 900;
+ background: linear-gradient(135deg, var(--gold), var(--gold2));
+ -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+ margin-bottom: 30px;
+ }
+ .login-input {
+ width: 100%;
+ padding: 14px;
+ border-radius: 12px;
+ border: 1px solid var(--border);
+ background: var(--bg2);
+ color: var(--text);
+ font-family: 'Rajdhani', sans-serif;
+ font-size: 16px;
+ margin-bottom: 20px;
+ outline: none;
+ }
+ .login-input:focus { border-color: var(--gold); }
+ .login-btn {
+ width: 100%;
+ padding: 14px;
+ border: none; border-radius: 12px;
+ background: linear-gradient(135deg, var(--gold), #c8860a);
+ color: #000;
+ font-family: 'Orbitron', sans-serif;
+ font-weight: 700;
+ font-size: 16px;
+ cursor: pointer;
+ }
+
+ /* ── ADMIN PANEL ── */
+ #admin-section { display: none; padding: 20px 16px 100px; }
+
+ .admin-header {
+ display: flex; justify-content: space-between; align-items: center;
+ padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+ }
+ .admin-title {
+ font-family: 'Orbitron', sans-serif;
+ font-size: 20px; font-weight: 900;
+ color: var(--gold);
+ }
+ .logout-btn {
+ background: none; border: 1px solid var(--border);
+ color: var(--muted); padding: 8px 16px; border-radius: 8px;
+ cursor: pointer; font-family: 'Rajdhani', sans-serif;
+ }
+
+ .stats-grid {
+ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;
+ }
+ .stat-card {
+ background: var(--card); border: 1px solid var(--border);
+ border-radius: 14px; padding: 16px; text-align: center;
+ }
+ .stat-val {
+ font-family: 'Orbitron', sans-serif;
+ font-size: 24px; font-weight: 700; color: var(--gold);
+ }
+ .stat-lbl {
+ font-size: 11px; color: var(--muted);
+ letter-spacing: 1px; text-transform: uppercase; margin-top: 4px;
+ }
+
+ .table-container {
+ background: var(--card); border: 1px solid var(--border);
+ border-radius: 14px; overflow: hidden;
+ }
+ .admin-table {
+ width: 100%; border-collapse: collapse;
+ }
+ .admin-table th {
+ background: rgba(0,0,0,0.3);
+ color: var(--muted); font-size: 11px;
+ text-align: left; padding: 12px 10px;
+ letter-spacing: 1px; text-transform: uppercase;
+ }
+ .admin-table td {
+ padding: 12px 10px;
+ border-bottom: 1px solid var(--border);
+ font-family: 'Rajdhani', sans-serif;
+ font-size: 14px;
+ }
+ .admin-table tr:last-child td { border-bottom: none; }
+
+ /* ── TOAST ── */
+ #toast {
+ position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+ background: rgba(0,0,0,0.9); border: 1px solid var(--border);
+ color: var(--text); padding: 12px 24px; border-radius: 30px;
+ font-size: 13px; z-index: 1000;
+ opacity: 0; pointer-events: none; transition: opacity 0.3s;
+ }
+ #toast.show { opacity: 1; }
+
+ @media (max-width: 360px) {
+ .stat-val { font-size: 20px; }
+ }
+ </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-section">
+ <div class="login-box">
+ <div class="login-title">TMB ADMIN</div>
+ <form id="login-form">
+ <input type="password" id="admin-secret" class="login-input" placeholder="Enter admin password" required autofocus/>
+ <button type="submit" class="login-btn">LOGIN</button>
+ </form>
+ </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="admin-section">
+ <div class="admin-header">
+ <div class="admin-title">Admin Panel</div>
+ <button class="logout-btn" onclick="location.reload()">Logout</button>
+ </div>
+
+ <div class="stats-grid">
+ <div class="stat-card">
+ <div class="stat-val" id="stat-users">0</div>
+ <div class="stat-lbl">Users</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-val" id="stat-pool">0.0000</div>
+ <div class="stat-lbl">Total Pool (TMB)</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-val" id="stat-holding">0.0000</div>
+ <div class="stat-lbl">Total Holding (TMB)</div>
+ </div>
+ <div class="stat-card">
+ <div class="stat-val" id="stat-referrals">0</div>
+ <div class="stat-lbl">Total Referrals</div>
+ </div>
+ </div>
+
+ <div class="table-container">
+ <table class="admin-table">
+ <thead>
+ <tr>
+ <th>ID</th>
+ <th>Name</th>
+ <th>Username</th>
+ <th>Pool</th>
+ <th>Holding</th>
+ <th>Lvl</th>
+ <th>Refs</th>
+ <th>Mining</th>
+ </tr>
+ </thead>
+ <tbody id="users-table-body">
+ <!-- rows -->
+ </tbody>
+ </table>
+ </div>
+</div>
+
+<div id="toast"></div>
+
+</body>
+</html>

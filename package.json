@@ -1,0 +1,29 @@
+{
+  "name": "tmb-bot",
+  "version": "1.0.0",
+  "description": "TMB Mining Telegram Bot + Web App",
+  "main": "bot/bot.js",
+  "scripts": {
+    "start": "node bot/bot.js",
+    "dev": "nodemon bot/bot.js"
+  },
+  "dependencies": {
+    "telegraf": "^4.15.2",
+    "firebase-admin": "^11.11.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "telegram-bot",
+    "mining",
+    "ton",
+    "firebase"
+  ],
+  "author": "TMB",
+  "license": "MIT"
+}
